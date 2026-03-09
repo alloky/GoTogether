@@ -29,8 +29,10 @@ Everything starts with a single `docker compose up -d`.
 
 ```bash
 cp monitoring/.env.example monitoring/.env
-# Edit monitoring/.env — fill in ALERT_BOT_TOKEN and ALERT_CHAT_ID
+# Edit monitoring/.env — fill in ALERT_BOT_TOKEN, ALERT_CHAT_ID, and GLITCHTIP_SECRET_KEY
 ```
+
+The `monitoring/.env` file is loaded by `alertmanager`, `glitchtip-web`, `glitchtip-worker`, and `sentry-relay`.
 
 **Getting ALERT_CHAT_ID**:
 1. Add your alert bot to the Telegram group
@@ -103,8 +105,13 @@ Select `VictoriaMetrics` as the datasource when prompted.
 📍 Culprit: handler.CreateMeeting
 💬 Error: index out of range [3] with length 2
 👁 Seen: 1 time(s)
-🔗 View in GlitchTip
+🔗 View in Sentry
 ```
+
+The link text reads "View in Sentry" (sentry-relay is compatible with both Sentry and GlitchTip webhook formats).
+
+Level emojis: 💀 fatal · 🔴 error · 🟡 warning · 🔵 info · ⚪ other
+Action emojis: 🆕 created · ✅ resolved · 👤 assigned · 🔕 ignored
 
 ### Alertmanager metric alerts
 
@@ -126,6 +133,48 @@ docker compose down
 docker compose down -v
 ```
 
+## sentry-relay environment variables
+
+`sentry-relay` reads these from `monitoring/.env` (via `env_file`) plus the compose `environment` block:
+
+- **`ALERT_BOT_TOKEN`** — Telegram bot token (the alert bot, not the GoTogether bot)
+- **`ALERT_CHAT_ID`** — Telegram group chat ID
+- **`SENTRY_SECRET`** — optional; if set, validates the `Sentry-Hook-Signature` header on incoming webhooks
+- **`GLITCHTIP_URL`** — base URL of the GlitchTip instance, used to build issue permalinks (default: `http://localhost:8100`)
+- **`PORT`** — HTTP listen port (default: `9456`, set to `9456` in compose)
+
+## Alert rules summary
+
+Rules live in `monitoring/rules/alerts.yml` and are evaluated by VMAlert.
+
+**containers** (interval 30s)
+- `ContainerDown` (critical) — app container absent from cAdvisor > 1 min
+- `ContainerRestartLoop` (warning) — restarted > 3 times in 5 min
+- `ContainerHighCPU` (warning) — CPU > 80% for 5 min
+- `ContainerHighMemory` (warning) — memory > 85% of limit for 5 min
+
+**host** (interval 60s)
+- `HostHighMemory` (warning) — host RAM > 85% for 5 min
+- `HostDiskSpaceHigh` (warning) — disk `/` > 80% for 5 min
+- `HostDiskSpaceCritical` (critical) — disk `/` > 95% for 2 min
+- `HostHighLoad` (warning) — 5-min load average > 2 for 10 min
+
+**backend** (interval 30s, activates once `/metrics` is exposed)
+- `BackendHighErrorRate` (warning) — 5xx rate > 1% for 2 min
+- `BackendCriticalErrorRate` (critical) — 5xx rate > 5% for 1 min
+- `BackendHighLatency` (warning) — P95 latency > 2s for 5 min
+- `BackendNoTraffic` (warning) — zero requests for 10 min
+
+**postgres** (interval 30s)
+- `PostgresDown` (critical) — exporter cannot connect for 1 min
+- `PostgresConnectionsHigh` (warning) — connections > 80% of max for 5 min
+- `PostgresLongRunningQuery` (warning) — query running > 30s for 1 min
+- `PostgresDeadlocks` (warning) — any deadlock in last 5 min
+
+**monitoring-health** (interval 60s)
+- `VictoriaMetricsDown` (critical) — absent for 2 min
+- `LokiDown` (warning) — absent for 2 min
+
 ## Next step: application instrumentation
 
 Add to `backend` and `tgbot` (separate implementation task):
@@ -140,3 +189,5 @@ sentry.Init(sentry.ClientOptions{
     Dsn: "http://<key>@localhost:8100/1",
 })
 ```
+
+Once the backend exposes `/metrics`, uncomment the `backend` scrape job in `monitoring/prometheus.yml` and the backend alert rules will activate.
