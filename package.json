@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "telegram-test-api": "^4.2.1"
+  }
+}

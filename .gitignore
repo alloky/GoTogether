@@ -1,0 +1,43 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Go
+backend/server
+tgbot/bin
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Frontend build output
+frontend/dist
+
+# Node modules
+node_modules/
+frontend/node_modules/
+e2e/node_modules/
+tgbot-tests/node_modules/
+
+# Playwright
+e2e/playwright-report/
+e2e/test-results/
+e2e/.cache/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log

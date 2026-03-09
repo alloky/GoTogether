@@ -1,0 +1,80 @@
+# OpenTelemetry Collector — fan-out configuration
+# Receives OTLP from backend + tgbot, distributes to Jaeger + VictoriaMetrics + Loki
+# All endpoints use localhost (network_mode: host)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+  resource:
+    attributes:
+      - action: insert
+        key: service.environment
+        value: production
+
+exporters:
+  # Traces → Jaeger (OTLP gRPC on shifted port 14317 to avoid self-conflict)
+  otlp/jaeger:
+    endpoint: localhost:14317
+    tls:
+      insecure: true
+
+  # Metrics → VictoriaMetrics (Prometheus remote write)
+  prometheusremotewrite:
+    endpoint: "http://localhost:8428/api/v1/write"
+    tls:
+      insecure: true
+
+  # Logs → Loki
+  loki:
+    endpoint: "http://localhost:3100/loki/api/v1/push"
+    tls:
+      insecure: true
+    default_labels_enabled:
+      exporter: false
+      job: true
+      instance: false
+      level: true
+
+  # Debug — disable in production by removing from pipelines
+  debug:
+    verbosity: normal
+    sampling_initial: 2
+    sampling_thereafter: 500
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp/jaeger]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [loki]
+
+  telemetry:
+    logs:
+      level: "warn"
+    metrics:
+      address: 0.0.0.0:8888

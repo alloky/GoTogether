@@ -1,0 +1,73 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /tmp/promtail/positions.yaml
+
+clients:
+  - url: http://localhost:3100/loki/api/v1/push
+
+scrape_configs:
+
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          # Only ship logs from GoTogether + monitoring containers
+          - name: label
+            values:
+              - com.docker.compose.project
+
+    relabel_configs:
+      # Use compose service name as the job label
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: job
+
+      # Container name as instance
+      - source_labels: [__meta_docker_container_name]
+        regex: "/(.*)"
+        target_label: instance
+
+      # Compose project name
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: compose_project
+
+      # Keep the container image for context
+      - source_labels: [__meta_docker_container_label_com_docker_compose_image]
+        target_label: image
+
+      # Drop empty container names
+      - source_labels: [__meta_docker_container_name]
+        regex: ""
+        action: drop
+
+    pipeline_stages:
+
+      # Detect log level from common patterns
+      - regex:
+          expression: >-
+            (?i)(?P<level>fatal|error|warn|warning|info|debug|panic|trace)
+
+      - labels:
+          level:
+
+      # Parse Go standard log format: 2024/01/01 12:00:00 message
+      - regex:
+          expression: >-
+            ^(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) (?P<message>.*)$
+
+      - timestamp:
+          source: timestamp
+          format: "2006/01/02 15:04:05"
+
+      # Extract trace_id from structured logs if present
+      # Enables log-to-trace correlation in Grafana
+      - regex:
+          expression: >-
+            trace_id=(?P<trace_id>[a-f0-9]{32})
+
+      - labels:
+          trace_id:

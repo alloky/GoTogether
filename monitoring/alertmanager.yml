@@ -1,0 +1,50 @@
+global:
+  resolve_timeout: 5m
+
+# ── Routing ──────────────────────────────────────────────────────────────────
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 30s        # wait before sending first notification in a group
+  group_interval: 5m     # wait before sending new notifications for a group
+  repeat_interval: 4h    # resend if alert is still firing after this duration
+  receiver: telegram-group
+
+  routes:
+    # Critical alerts fire immediately with no grouping delay
+    - matchers:
+        - severity = critical
+      group_wait: 0s
+      repeat_interval: 1h
+      receiver: telegram-group
+
+    # Monitoring self-health alerts go to the same group but less frequently
+    - matchers:
+        - alertname =~ "VictoriaMetricsDown|LokiDown"
+      repeat_interval: 2h
+      receiver: telegram-group
+
+# ── Receivers ────────────────────────────────────────────────────────────────
+receivers:
+  - name: telegram-group
+    telegram_configs:
+      - bot_token: "${ALERT_BOT_TOKEN}"
+        chat_id: ${ALERT_CHAT_ID}
+        parse_mode: "HTML"
+        message: |
+          {{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b>
+          Severity: <code>{{ .CommonLabels.severity }}</code>
+          {{ range .Alerts }}
+          📌 {{ .Annotations.summary }}
+          {{ if .Annotations.description }}ℹ️ {{ .Annotations.description }}{{ end }}
+          ⏰ Started: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          {{ end }}
+        send_resolved: true
+
+# ── Inhibition rules ─────────────────────────────────────────────────────────
+inhibit_rules:
+  # If a critical alert fires for a service, suppress its warnings
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal: ["alertname"]

@@ -1,0 +1,308 @@
+services:
+
+  # ═══════════════════════════════════════════
+  # APPLICATION
+  # ═══════════════════════════════════════════
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gotogether
+      POSTGRES_USER: gotogether
+      POSTGRES_PASSWORD: gotogether
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./monitoring/init-glitchtip-db.sql:/docker-entrypoint-initdb.d/10-glitchtip.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gotogether"]
+      interval: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    network_mode: host
+    environment:
+      DATABASE_URL: postgres://gotogether:gotogether@127.0.0.1:5432/gotogether?sslmode=disable
+      JWT_SECRET: dev-secret-change-me
+      PORT: "8080"
+      CORS_ORIGIN: "http://localhost:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  frontend:
+    build: ./frontend
+    network_mode: host
+    depends_on:
+      - backend
+    restart: on-failure
+
+  tgbot:
+    build: ./tgbot
+    network_mode: host
+    env_file: .env
+    environment:
+      BACKEND_URL: http://127.0.0.1:8080
+      JWT_SECRET: dev-secret-change-me
+    depends_on:
+      - backend
+    restart: on-failure
+
+  # ═══════════════════════════════════════════
+  # MONITORING — METRICS
+  # ═══════════════════════════════════════════
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.104.0
+    network_mode: host
+    volumes:
+      - vmdata:/victoria-metrics-data
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--httpListenAddr=:8428"
+      - "--retentionPeriod=3"
+    restart: unless-stopped
+
+  vmagent:
+    image: victoriametrics/vmagent:v1.104.0
+    network_mode: host
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/vmagent/prometheus.yml:ro
+      - vmagentdata:/vmagentdata
+    command:
+      - "--promscrape.config=/etc/vmagent/prometheus.yml"
+      - "--remoteWrite.url=http://localhost:8428/api/v1/write"
+      - "--remoteWrite.tmpDataPath=/vmagentdata"
+      - "--httpListenAddr=:8429"
+    depends_on:
+      - victoriametrics
+    restart: unless-stopped
+
+  vmalert:
+    image: victoriametrics/vmalert:v1.104.0
+    network_mode: host
+    volumes:
+      - ./monitoring/rules:/rules:ro
+    command:
+      - "--datasource.url=http://localhost:8428"
+      - "--remoteWrite.url=http://localhost:8428/api/v1/write"
+      - "--remoteRead.url=http://localhost:8428"
+      - "--notifier.url=http://localhost:9093"
+      - "--rule=/rules/*.yml"
+      - "--httpListenAddr=:8880"
+    depends_on:
+      - victoriametrics
+      - alertmanager
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    network_mode: host
+    env_file: monitoring/.env
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanagerdata:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.listen-address=:9093"
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════
+  # MONITORING — EXPORTERS
+  # ═══════════════════════════════════════════
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    network_mode: host
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    command:
+      - "--port=8081"
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    network_mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--web.listen-address=:9100"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    network_mode: host
+    environment:
+      DATA_SOURCE_NAME: "postgresql://gotogether:gotogether@localhost:5432/gotogether?sslmode=disable"
+      PG_EXPORTER_WEB_LISTEN_ADDRESS: ":9187"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════
+  # MONITORING — LOGS
+  # ═══════════════════════════════════════════
+
+  loki:
+    image: grafana/loki:3.3.2
+    network_mode: host
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - lokidata:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    network_mode: host
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtaildata:/tmp/promtail
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════
+  # MONITORING — TRACING
+  # ═══════════════════════════════════════════
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    network_mode: host
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: "badger"
+      BADGER_EPHEMERAL: "false"
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY: /badger/key
+      BADGER_SPAN_STORE_TTL: "168h"
+      COLLECTOR_OTLP_GRPC_HOST_PORT: ":14317"
+      COLLECTOR_OTLP_HTTP_HOST_PORT: ":14318"
+      QUERY_PORT: "16686"
+    volumes:
+      - jaegerdata:/badger
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    network_mode: host
+    volumes:
+      - ./monitoring/otelcol-config.yml:/etc/otelcol-contrib/config.yaml:ro
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    depends_on:
+      - jaeger
+      - victoriametrics
+      - loki
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════
+  # MONITORING — DASHBOARDS
+  # ═══════════════════════════════════════════
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_PORT: "3001"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: gotogether
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor traceToMetrics"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - victoriametrics
+      - loki
+      - jaeger
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════
+  # MONITORING — ERROR TRACKING (GlitchTip)
+  # Sentry-SDK compatible. Uses the main db (separate "glitchtip" database).
+  # ═══════════════════════════════════════════
+
+  glitchtip-redis:
+    image: redis:7-alpine
+    network_mode: host
+    command: ["redis-server", "--port", "6380"]
+    volumes:
+      - glitchtip-redis:/data
+    restart: unless-stopped
+
+  glitchtip-web:
+    image: glitchtip/glitchtip:latest
+    network_mode: host
+    env_file: monitoring/.env
+    environment:
+      DATABASE_URL: "postgres://glitchtip:glitchtip@localhost:5432/glitchtip"
+      REDIS_URL: "redis://localhost:6380/0"
+      SECRET_KEY: "${GLITCHTIP_SECRET_KEY:-change-me-to-a-random-string}"
+      PORT: "8100"
+      GLITCHTIP_DOMAIN: "http://localhost:8100"
+      DEFAULT_FROM_EMAIL: "noreply@gotogether.local"
+      ENABLE_OBSERVABILITY_API: "true"
+      CELERY_WORKER_AUTOSCALE: "1,3"
+      CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
+    depends_on:
+      db:
+        condition: service_healthy
+      glitchtip-redis:
+        condition: service_started
+    restart: unless-stopped
+
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    network_mode: host
+    env_file: monitoring/.env
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: "postgres://glitchtip:glitchtip@localhost:5432/glitchtip"
+      REDIS_URL: "redis://localhost:6380/0"
+      SECRET_KEY: "${GLITCHTIP_SECRET_KEY:-change-me-to-a-random-string}"
+    depends_on:
+      db:
+        condition: service_healthy
+      glitchtip-redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════
+  # MONITORING — GLITCHTIP WEBHOOK → TELEGRAM
+  # ═══════════════════════════════════════════
+
+  sentry-relay:
+    build: ./monitoring/sentry-relay
+    network_mode: host
+    env_file: monitoring/.env
+    environment:
+      PORT: "9456"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  vmdata:
+  vmagentdata:
+  alertmanagerdata:
+  lokidata:
+  promtaildata:
+  jaegerdata:
+  glitchtip-redis:
+  grafanadata:

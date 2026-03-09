@@ -1,0 +1,568 @@
+openapi: 3.0.3
+info:
+  title: GoTogether API
+  description: Meeting planner and scheduler API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+
+  /api/auth/login:
+    post:
+      summary: Login with email and password
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /api/auth/me:
+    get:
+      summary: Get current user profile
+      tags: [Auth]
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/users/search:
+    get:
+      summary: Search users by display name
+      tags: [Users]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query (matches display name, case-insensitive)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            maximum: 20
+      responses:
+        '200':
+          description: List of matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/meetings:
+    post:
+      summary: Create a new meeting
+      tags: [Meetings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeetingInput'
+      responses:
+        '201':
+          description: Meeting created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      summary: List my meetings
+      tags: [Meetings]
+      responses:
+        '200':
+          description: List of meetings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Meeting'
+
+  /api/meetings/all:
+    get:
+      summary: List all meetings from all users with time slots and organizer info
+      tags: [Meetings]
+      responses:
+        '200':
+          description: List of all meetings with time slots populated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeetingDetail'
+
+  /api/meetings/{id}:
+    parameters:
+      - $ref: '#/components/parameters/MeetingID'
+
+    get:
+      summary: Get meeting details
+      tags: [Meetings]
+      responses:
+        '200':
+          description: Meeting details with slots, participants, and votes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update meeting (organizer only, pending status)
+      tags: [Meetings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeetingInput'
+      responses:
+        '200':
+          description: Meeting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+
+    delete:
+      summary: Delete meeting (organizer only)
+      tags: [Meetings]
+      responses:
+        '204':
+          description: Meeting deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/meetings/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/MeetingID'
+    post:
+      summary: Confirm meeting (organizer picks slot or auto-pick)
+      tags: [Meetings]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmInput'
+      responses:
+        '200':
+          description: Meeting confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+
+  /api/meetings/{id}/participants:
+    parameters:
+      - $ref: '#/components/parameters/MeetingID'
+    post:
+      summary: Add participants (organizer only)
+      tags: [Participants]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emails:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+      responses:
+        '204':
+          description: Participants added
+
+  /api/meetings/{id}/participants/rsvp:
+    parameters:
+      - $ref: '#/components/parameters/MeetingID'
+    put:
+      summary: Update RSVP status
+      tags: [Participants]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, declined]
+      responses:
+        '204':
+          description: RSVP updated
+
+  /api/meetings/{id}/votes:
+    parameters:
+      - $ref: '#/components/parameters/MeetingID'
+    post:
+      summary: Cast votes (replaces previous votes)
+      tags: [Votes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteInput'
+      responses:
+        '204':
+          description: Votes recorded
+
+    get:
+      summary: Get vote summary
+      tags: [Votes]
+      responses:
+        '200':
+          description: Vote summary per time slot
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeSlotWithVotes'
+
+  /api/meetings/{id}/tags:
+    parameters:
+      - $ref: '#/components/parameters/MeetingID'
+    put:
+      summary: Set tags for a meeting (organizer only)
+      tags: [Tags]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tags]
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '204':
+          description: Tags updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/meetings/tags/all:
+    get:
+      summary: Get all unique tags across all meetings
+      tags: [Tags]
+      responses:
+        '200':
+          description: List of all unique tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    MeetingID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    RegisterInput:
+      type: object
+      required: [email, displayName, password]
+      properties:
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        password:
+          type: string
+          minLength: 6
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateMeetingInput:
+      type: object
+      required: [title, timeSlots]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        isPublic:
+          type: boolean
+          default: true
+        tags:
+          type: array
+          items:
+            type: string
+        timeSlots:
+          type: array
+          items:
+            type: object
+            required: [startTime, endTime]
+            properties:
+              startTime:
+                type: string
+                format: date-time
+              endTime:
+                type: string
+                format: date-time
+        participantEmails:
+          type: array
+          items:
+            type: string
+            format: email
+        participantIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpdateMeetingInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+
+    ConfirmInput:
+      type: object
+      properties:
+        timeSlotId:
+          type: string
+          format: uuid
+
+    VoteInput:
+      type: object
+      required: [timeSlotIds]
+      properties:
+        timeSlotIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    Meeting:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        organizerId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+        isPublic:
+          type: boolean
+          default: true
+        tags:
+          type: array
+          items:
+            type: string
+        confirmedSlotId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    MeetingDetail:
+      allOf:
+        - $ref: '#/components/schemas/Meeting'
+        - type: object
+          properties:
+            organizer:
+              $ref: '#/components/schemas/User'
+            timeSlots:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimeSlotWithVotes'
+            participants:
+              type: array
+              items:
+                $ref: '#/components/schemas/Participant'
+
+    TimeSlotWithVotes:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        meetingId:
+          type: string
+          format: uuid
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        voteCount:
+          type: integer
+        voters:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    Participant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        meetingId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        rsvpStatus:
+          type: string
+          enum: [invited, accepted, declined]
+        user:
+          $ref: '#/components/schemas/User'
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
