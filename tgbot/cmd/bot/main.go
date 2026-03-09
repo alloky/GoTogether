@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gotogether/tgbot/internal/apiclient"
 	"github.com/gotogether/tgbot/internal/auth"
 	"github.com/gotogether/tgbot/internal/bot"
@@ -16,6 +18,20 @@ func main() {
 	cfg := config.Load()
 	if cfg.TelegramBotToken == "" {
 		log.Fatal("TELEGRAM_BOT_TOKEN is required")
+	}
+
+	// Initialize Sentry (no-op if DSN is empty)
+	if cfg.SentryDSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn:         cfg.SentryDSN,
+			Environment: "production",
+		}); err != nil {
+			log.Printf("WARN: Sentry init failed: %v", err)
+		} else {
+			log.Println("Sentry initialized")
+			defer sentry.Flush(5 * time.Second)
+			defer sentry.Recover()
+		}
 	}
 
 	log.Printf("Backend URL: %s", cfg.BackendURL)

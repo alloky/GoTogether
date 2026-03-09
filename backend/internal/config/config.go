@@ -8,6 +8,8 @@ type Config struct {
 	Port           string
 	CORSOrigin     string
 	MigrationsPath string
+	OTELEndpoint   string
+	SentryDSN      string
 }
 
 func Load() *Config {
@@ -17,6 +19,8 @@ func Load() *Config {
 		Port:           getEnv("PORT", "8080"),
 		CORSOrigin:     getEnv("CORS_ORIGIN", "http://localhost:3000"),
 		MigrationsPath: getEnv("MIGRATIONS_PATH", "/migrations"),
+		OTELEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		SentryDSN:      getEnv("SENTRY_DSN", ""),
 	}
 }
 

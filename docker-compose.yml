@@ -28,6 +28,8 @@ services:
       JWT_SECRET: dev-secret-change-me
       PORT: "8080"
       CORS_ORIGIN: "http://localhost:3000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "localhost:4317"
+      SENTRY_DSN: "${SENTRY_DSN_BACKEND:-}"
     depends_on:
       db:
         condition: service_healthy
@@ -47,6 +49,7 @@ services:
     environment:
       BACKEND_URL: http://127.0.0.1:8080
       JWT_SECRET: dev-secret-change-me
+      SENTRY_DSN: "${SENTRY_DSN_TGBOT:-}"
     depends_on:
       - backend
     restart: on-failure

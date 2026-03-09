@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/exaring/otelpgx"
+	"github.com/getsentry/sentry-go"
 	"github.com/gotogether/backend/internal/config"
 	"github.com/gotogether/backend/internal/handler"
 	"github.com/gotogether/backend/internal/repository/postgres"
@@ -19,10 +21,34 @@ import (
 
 func main() {
 	cfg := config.Load()
-
-	// Connect to database
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+
+	// Initialize OpenTelemetry tracing
+	shutdownTracer := handler.InitTracer(ctx, cfg.OTELEndpoint)
+	defer shutdownTracer(ctx)
+
+	// Initialize Sentry (no-op if DSN is empty)
+	if cfg.SentryDSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn:              cfg.SentryDSN,
+			TracesSampleRate: 1.0,
+			Environment:      "production",
+		}); err != nil {
+			log.Printf("WARN: Sentry init failed: %v", err)
+		} else {
+			log.Println("Sentry initialized")
+			defer sentry.Flush(5 * time.Second)
+		}
+	}
+
+	// Connect to database with OTel tracing
+	pgxCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Unable to parse database URL: %v", err)
+	}
+	pgxCfg.ConnConfig.Tracer = otelpgx.NewTracer()
+
+	pool, err := pgxpool.NewWithConfig(ctx, pgxCfg)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v", err)
 	}

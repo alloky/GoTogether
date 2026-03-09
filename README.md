@@ -125,11 +125,14 @@ monitoring/
 - **`JWT_SECRET`** — `dev-secret-change-me`
 - **`PORT`** — `8080`
 - **`CORS_ORIGIN`** — `http://localhost:3000`
+- **`OTEL_EXPORTER_OTLP_ENDPOINT`** — `localhost:4317` (gRPC endpoint for OTel Collector)
+- **`SENTRY_DSN`** — GlitchTip DSN for error tracking (optional, set via `SENTRY_DSN_BACKEND`)
 
 ### Telegram Bot (`.env` in project root)
 - **`TELEGRAM_BOT_TOKEN`** — required
 - **`BACKEND_URL`** — defaults to `http://127.0.0.1:8080`
 - **`JWT_SECRET`** — must match backend
+- **`SENTRY_DSN`** — GlitchTip DSN for error tracking (optional, set via `SENTRY_DSN_TGBOT`)
 
 ### Monitoring (`monitoring/.env`)
 - **`ALERT_BOT_TOKEN`** — Telegram bot token for alert notifications (different from the GoTogether bot)
@@ -140,5 +143,7 @@ monitoring/
 ## Monitoring
 
 The backend exposes Prometheus metrics at `GET /metrics` (unauthenticated). VMAgent scrapes this endpoint and forwards to VictoriaMetrics. Alert rules are evaluated by VMAlert (metric alerts) and Loki ruler (log-based alerts), with all alerts routed through Alertmanager to a Telegram group.
+
+The backend also sends distributed traces (HTTP requests + SQL queries) to Jaeger via OTel Collector. Both backend and tgbot report errors to GlitchTip via the `sentry-go` SDK.
 
 See [monitoring/README.md](monitoring/README.md) for full setup, alert rules summary, and configuration details.

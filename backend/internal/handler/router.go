@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"github.com/getsentry/sentry-go"
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -21,7 +23,14 @@ func NewRouter(authService *service.AuthService, meetingService *service.Meeting
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.RequestID)
+	r.Use(OTelMiddleware)
 	r.Use(PrometheusMiddleware)
+
+	// Sentry error reporting middleware (no-op if Sentry is not initialized).
+	if hub := sentry.CurrentHub(); hub != nil && hub.Client() != nil {
+		sentryHandler := sentryhttp.New(sentryhttp.Options{Repanic: true})
+		r.Use(sentryHandler.Handle)
+	}
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{corsOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},

@@ -223,15 +223,43 @@ Metrics exported:
 
 VMAgent scrapes this endpoint via the `backend` job in `monitoring/prometheus.yml`.
 
-## Next step: full OTel SDK + tracing + sentry-go
+## OpenTelemetry tracing
 
-The backend currently exposes Prometheus metrics but does not send traces to Jaeger
-or errors to GlitchTip. The next task is to add full OTel instrumentation and
-sentry-go integration. See the copy-paste prompt below for this task.
+The backend is instrumented with OpenTelemetry SDK and exports traces via gRPC OTLP
+to the OTel Collector, which forwards them to Jaeger.
 
-The `sentry-go` SDK works identically with GlitchTip — just use the GlitchTip DSN:
-```go
-sentry.Init(sentry.ClientOptions{
-    Dsn: "http://<key>@localhost:8100/1",
-})
-```
+**How it works:**
+- `handler.InitTracer()` creates a `TracerProvider` with a gRPC OTLP exporter
+- `OTelMiddleware` wraps every HTTP request in a trace span (using chi route patterns for low-cardinality span names)
+- `otelpgx` traces every SQL query on the pgxpool connection (visible as child spans in Jaeger)
+- Endpoint configurable via `OTEL_EXPORTER_OTLP_ENDPOINT` env var (default: `localhost:4317`)
+
+**Viewing traces:**
+1. Open Jaeger UI: http://localhost:16686
+2. Select service `backend`
+3. Find traces showing HTTP request → SQL query spans
+
+## Sentry / GlitchTip error tracking
+
+Both backend and tgbot are instrumented with `sentry-go` SDK, pointing at GlitchTip.
+
+**Backend:**
+- `sentry.Init()` on startup with DSN from `SENTRY_DSN` env var
+- `sentryhttp` middleware captures unhandled panics and reports them as Sentry events
+- Configure DSN in `docker-compose.yml` via `SENTRY_DSN_BACKEND` env var
+
+**Telegram bot:**
+- `sentry.Init()` on startup with DSN from `SENTRY_DSN` env var
+- `sentry.Recover()` deferred in main to capture panics
+- Configure DSN in `docker-compose.yml` via `SENTRY_DSN_TGBOT` env var
+
+**Setup:**
+1. Create projects in GlitchTip (http://localhost:8100) — see "Configure GlitchTip" above
+2. Copy DSNs and set in `.env` or `docker-compose.yml`:
+   ```bash
+   SENTRY_DSN_BACKEND=http://<key>@glitchtip-web:8000/1
+   SENTRY_DSN_TGBOT=http://<key>@glitchtip-web:8000/2
+   ```
+3. Restart services: `docker compose up -d backend tgbot`
+
+The `sentry-go` SDK is fully compatible with GlitchTip — just use the GlitchTip DSN.
