@@ -164,6 +164,7 @@ services:
     network_mode: host
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./monitoring/loki/rules:/loki/rules:ro
       - lokidata:/loki
     command: -config.file=/etc/loki/local-config.yaml
     restart: unless-stopped

@@ -48,7 +48,7 @@ func main() {
 	meetingService := service.NewMeetingService(meetingRepo, userRepo)
 
 	// Initialize router
-	router := handler.NewRouter(authService, meetingService, cfg.CORSOrigin)
+	router := handler.NewRouter(authService, meetingService, cfg.CORSOrigin, pool)
 
 	// Start server
 	srv := &http.Server{

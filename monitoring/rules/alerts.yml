@@ -9,15 +9,15 @@ groups:
 
       - alert: ContainerDown
         expr: |
-          absent(container_last_seen{
+          time() - container_last_seen{
             container_label_com_docker_compose_service=~"backend|frontend|tgbot|db"
-          }) == 1
-        for: 1m
+          } > 30
+        for: 0m
         labels:
           severity: critical
         annotations:
           summary: "Container {{ $labels.container_label_com_docker_compose_service }} is down"
-          description: "Container has been absent from cAdvisor for more than 1 minute."
+          description: "Container has not been seen by cAdvisor for more than 30 seconds."
 
       - alert: ContainerRestartLoop
         expr: |
@@ -157,6 +157,37 @@ groups:
           summary: "Backend received no HTTP requests for 10 minutes"
           description: "Possible crash or connectivity issue."
 
+      - alert: BackendDBPoolHigh
+        expr: |
+          pgx_pool_acquired_connections{job="backend"}
+          /
+          pgx_pool_max_connections{job="backend"} > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend DB connection pool above 90%"
+          description: "Acquired connections: {{ $value | humanizePercentage }} of max pool size."
+
+  # ─────────────────────────────────────────
+  # TELEGRAM BOT
+  # ─────────────────────────────────────────
+  - name: tgbot
+    interval: 30s
+    rules:
+
+      - alert: TgbotDown
+        expr: |
+          time() - container_last_seen{
+            container_label_com_docker_compose_service="tgbot"
+          } > 30
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Telegram bot container is down"
+          description: "tgbot container has not been seen by cAdvisor for more than 30 seconds."
+
   # ─────────────────────────────────────────
   # POSTGRESQL
   # ─────────────────────────────────────────
@@ -202,6 +233,16 @@ groups:
         annotations:
           summary: "PostgreSQL deadlock detected"
           description: "{{ $value }} deadlock(s) in the last 5 minutes."
+
+      - alert: PostgresCheckpointsTooFrequent
+        expr: |
+          rate(pg_stat_bgwriter_checkpoints_req_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "PostgreSQL requested checkpoints too frequent"
+          description: "Checkpoint request rate: {{ $value | humanize }}/s — consider increasing max_wal_size."
 
   # ─────────────────────────────────────────
   # MONITORING STACK SELF-HEALTH

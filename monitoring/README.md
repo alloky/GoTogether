@@ -145,13 +145,18 @@ docker compose down -v
 
 ## Alert rules summary
 
+### Metric alerts (VMAlert → Alertmanager)
+
 Rules live in `monitoring/rules/alerts.yml` and are evaluated by VMAlert.
 
 **containers** (interval 30s)
-- `ContainerDown` (critical) — app container absent from cAdvisor > 1 min
+- `ContainerDown` (critical) — cAdvisor `container_last_seen` gap > 30s
 - `ContainerRestartLoop` (warning) — restarted > 3 times in 5 min
 - `ContainerHighCPU` (warning) — CPU > 80% for 5 min
 - `ContainerHighMemory` (warning) — memory > 85% of limit for 5 min
+
+**tgbot** (interval 30s)
+- `TgbotDown` (critical) — tgbot container not seen for > 30s
 
 **host** (interval 60s)
 - `HostHighMemory` (warning) — host RAM > 85% for 5 min
@@ -159,29 +164,70 @@ Rules live in `monitoring/rules/alerts.yml` and are evaluated by VMAlert.
 - `HostDiskSpaceCritical` (critical) — disk `/` > 95% for 2 min
 - `HostHighLoad` (warning) — 5-min load average > 2 for 10 min
 
-**backend** (interval 30s, activates once `/metrics` is exposed)
+**backend** (interval 30s)
 - `BackendHighErrorRate` (warning) — 5xx rate > 1% for 2 min
 - `BackendCriticalErrorRate` (critical) — 5xx rate > 5% for 1 min
 - `BackendHighLatency` (warning) — P95 latency > 2s for 5 min
 - `BackendNoTraffic` (warning) — zero requests for 10 min
+- `BackendDBPoolHigh` (warning) — pgx pool acquired connections > 90% of max for 2 min
 
 **postgres** (interval 30s)
 - `PostgresDown` (critical) — exporter cannot connect for 1 min
 - `PostgresConnectionsHigh` (warning) — connections > 80% of max for 5 min
 - `PostgresLongRunningQuery` (warning) — query running > 30s for 1 min
 - `PostgresDeadlocks` (warning) — any deadlock in last 5 min
+- `PostgresCheckpointsTooFrequent` (info) — requested checkpoint rate > 0.5/s for 5 min
 
 **monitoring-health** (interval 60s)
 - `VictoriaMetricsDown` (critical) — absent for 2 min
 - `LokiDown` (warning) — absent for 2 min
 
-## Next step: application instrumentation
+### Loki log alerts (Loki ruler → Alertmanager)
 
-Add to `backend` and `tgbot` (separate implementation task):
-- `github.com/getsentry/sentry-go` + `sentrychi` middleware — point DSN at GlitchTip
-- `go.opentelemetry.io/contrib/instrumentation/github.com/go-chi/chi/v5/otelchi`
-- `github.com/exaring/otelpgx` for SQL trace spans
-- OTel metric instruments for HTTP request counters and latency histograms
+Rules live in `monitoring/loki/rules/fake/alerts.yml` and are evaluated by the Loki ruler.
+
+**log-alerts** (interval 30s)
+- `LogFatalOrPanic` (critical) — log contains FATAL or panic in backend/tgbot/frontend/db
+- `LogMigrationFailed` (critical) — backend log contains migration failure
+- `LogBackendErrorRate` (warning) — more than 10 ERROR log lines per minute in backend
+- `TgbotPollingErrors` (warning) — more than 3 Telegram polling errors in 5 min
+
+### GlitchTip / Sentry alerts
+
+GlitchTip handles error tracking alerts natively via webhook → `sentry-relay` → Telegram:
+- **New issue detected** — fires immediately when `sentry-relay` receives a `created` webhook event
+- Configure in GlitchTip: Settings → Project → Alerts → Webhook URL: `http://localhost:9456/webhook`
+
+> **Known limitations:**
+> - GlitchTip (open source) does not support issue frequency threshold alerts (e.g. >10/min).
+>   Use the `LogBackendErrorRate` Loki alert as a substitute.
+> - GlitchTip does not support anomaly detection or error-rate-spike alerts.
+>   These require a paid Sentry plan or custom tooling.
+
+## Backend metrics endpoint
+
+The backend exposes Prometheus metrics at `GET /metrics` (unauthenticated, outside `/api`).
+
+Metrics exported:
+- `http_requests_total{method, path, status}` — HTTP request counter
+- `http_request_duration_seconds{method, path}` — HTTP latency histogram (P50/P95/P99)
+- `http_requests_in_flight` — current concurrent requests
+- `pgx_pool_acquired_connections` — currently acquired DB connections
+- `pgx_pool_idle_connections` — idle DB connections
+- `pgx_pool_total_connections` — total DB connections in pool
+- `pgx_pool_max_connections` — maximum pool size
+- `pgx_pool_acquire_count_total` — cumulative successful acquires
+- `pgx_pool_acquire_duration_seconds_total` — cumulative acquire wait time
+- `pgx_pool_canceled_acquire_count_total` — acquires canceled by context
+- `pgx_pool_empty_acquire_count_total` — acquires when pool was empty
+
+VMAgent scrapes this endpoint via the `backend` job in `monitoring/prometheus.yml`.
+
+## Next step: full OTel SDK + tracing + sentry-go
+
+The backend currently exposes Prometheus metrics but does not send traces to Jaeger
+or errors to GlitchTip. The next task is to add full OTel instrumentation and
+sentry-go integration. See the copy-paste prompt below for this task.
 
 The `sentry-go` SDK works identically with GlitchTip — just use the GlitchTip DSN:
 ```go
@@ -189,5 +235,3 @@ sentry.Init(sentry.ClientOptions{
     Dsn: "http://<key>@localhost:8100/1",
 })
 ```
-
-Once the backend exposes `/metrics`, uncomment the `backend` scrape job in `monitoring/prometheus.yml` and the backend alert rules will activate.

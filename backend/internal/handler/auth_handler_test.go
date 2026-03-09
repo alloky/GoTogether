@@ -98,7 +98,7 @@ func TestMeHandler_Unauthorized(t *testing.T) {
 	handler, authService := setupAuthTest()
 
 	// Test with valid token but no user in repo (will return not found)
-	router := NewRouter(authService, nil, "*")
+	router := NewRouter(authService, nil, "*", nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	w := httptest.NewRecorder()

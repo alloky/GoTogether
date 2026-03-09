@@ -50,7 +50,7 @@ func TestListMeetings_Empty(t *testing.T) {
 		return nil, nil
 	}
 
-	router := NewRouter(authService, meetingService, "*")
+	router := NewRouter(authService, meetingService, "*", nil)
 
 	// Register a user to get a valid token
 	regBody, _ := json.Marshal(map[string]string{
@@ -89,7 +89,7 @@ func TestListMeetings_Empty(t *testing.T) {
 
 func TestListMeetings_Unauthorized(t *testing.T) {
 	authService, meetingService, _, _ := setupMeetingTest()
-	router := NewRouter(authService, meetingService, "*")
+	router := NewRouter(authService, meetingService, "*", nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/meetings/", nil)
 	w := httptest.NewRecorder()
@@ -102,7 +102,7 @@ func TestListMeetings_Unauthorized(t *testing.T) {
 
 func TestCreateMeeting_Unauthorized(t *testing.T) {
 	authService, meetingService, _, _ := setupMeetingTest()
-	router := NewRouter(authService, meetingService, "*")
+	router := NewRouter(authService, meetingService, "*", nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"title": "Test Meeting",

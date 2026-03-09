@@ -1,0 +1,51 @@
+groups:
+
+  # ─────────────────────────────────────────
+  # LOG-BASED ALERTS (evaluated by Loki ruler)
+  # Fired via Alertmanager → Telegram
+  # ─────────────────────────────────────────
+  - name: log-alerts
+    interval: 30s
+    rules:
+
+      - alert: LogFatalOrPanic
+        expr: |
+          sum by (job) (
+            count_over_time({job=~"backend|tgbot|frontend|db"} |~ "(?i)(FATAL|panic)" [1m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FATAL or panic detected in {{ $labels.job }}"
+          description: "Log line containing FATAL or panic found in the last 1 minute."
+
+      - alert: LogMigrationFailed
+        expr: |
+          count_over_time({job="backend"} |~ "(?i)migration.*(fail|error)" [2m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database migration failure detected"
+          description: "Backend logs contain a migration failure in the last 2 minutes."
+
+      - alert: LogBackendErrorRate
+        expr: |
+          sum(count_over_time({job="backend"} |= "ERROR" [1m])) > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend error log rate exceeds 10/min"
+          description: "More than 10 ERROR-level log lines in the last minute."
+
+      - alert: TgbotPollingErrors
+        expr: |
+          sum(count_over_time({job="tgbot"} |~ "(?i)(poll.*error|getUpdates.*error|telegram.*error)" [5m])) > 3
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Telegram bot polling errors detected"
+          description: "More than 3 Telegram API polling errors in the last 5 minutes."

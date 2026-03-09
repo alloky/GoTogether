@@ -105,11 +105,12 @@ tgbot/internal/
   auth/              # Telegram ↔ backend JWT mapping
 
 monitoring/
-  prometheus.yml     # VMAgent scrape config
+  prometheus.yml     # VMAgent scrape config (incl. backend /metrics)
   alertmanager.yml   # Alert routing → Telegram
   otelcol-config.yml # OTel Collector pipelines (traces, metrics, logs)
-  rules/             # VMAlert alert rules (containers, host, backend, postgres)
-  loki/              # Loki config
+  rules/             # VMAlert alert rules (containers, host, backend, tgbot, postgres)
+  loki/              # Loki config + ruler alert rules (log-based alerts)
+    rules/fake/      # Loki ruler rules (LogFatal, MigrationFailed, ErrorRate, TgbotPolling)
   promtail/          # Promtail config (Docker container log collection)
   grafana/           # Auto-provisioned datasources and dashboard pointers
   sentry-relay/      # GlitchTip webhook → Telegram forwarder (Go service)
@@ -138,4 +139,6 @@ monitoring/
 
 ## Monitoring
 
-See [monitoring/README.md](monitoring/README.md) for full setup and configuration details.
+The backend exposes Prometheus metrics at `GET /metrics` (unauthenticated). VMAgent scrapes this endpoint and forwards to VictoriaMetrics. Alert rules are evaluated by VMAlert (metric alerts) and Loki ruler (log-based alerts), with all alerts routed through Alertmanager to a Telegram group.
+
+See [monitoring/README.md](monitoring/README.md) for full setup, alert rules summary, and configuration details.

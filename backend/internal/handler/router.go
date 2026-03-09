@@ -5,14 +5,23 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/gotogether/backend/internal/service"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func NewRouter(authService *service.AuthService, meetingService *service.MeetingService, corsOrigin string) *chi.Mux {
+func NewRouter(authService *service.AuthService, meetingService *service.MeetingService, corsOrigin string, pool *pgxpool.Pool) *chi.Mux {
 	r := chi.NewRouter()
+
+	// Register pgx pool metrics collector (nil-safe for tests).
+	if pool != nil {
+		prometheus.MustRegister(NewPgxPoolCollector(pool))
+	}
 
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.RequestID)
+	r.Use(PrometheusMiddleware)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{corsOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -21,6 +30,9 @@ func NewRouter(authService *service.AuthService, meetingService *service.Meeting
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+
+	// Prometheus metrics endpoint — unauthenticated, outside /api.
+	r.Handle("/metrics", promhttp.Handler())
 
 	authHandler := NewAuthHandler(authService)
 	meetingHandler := NewMeetingHandler(meetingService)

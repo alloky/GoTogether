@@ -39,8 +39,7 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:8888"]
 
-  # Scrape the backend /metrics endpoint once instrumented
-  # - job_name: backend
-  #   static_configs:
-  #     - targets: ["localhost:8080"]
-  #   metrics_path: /metrics
+  - job_name: backend
+    static_configs:
+      - targets: ["localhost:8080"]
+    metrics_path: /metrics
