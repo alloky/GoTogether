@@ -9,12 +9,16 @@ import (
 
 // MockUserRepo implements domain.UserRepository for testing
 type MockUserRepo struct {
-	CreateFn       func(ctx context.Context, user *domain.User) error
-	FindByEmailFn  func(ctx context.Context, email string) (*domain.User, error)
-	FindByIDFn     func(ctx context.Context, id uuid.UUID) (*domain.User, error)
-	FindByIDsFn    func(ctx context.Context, ids []uuid.UUID) ([]domain.User, error)
-	FindByEmailsFn func(ctx context.Context, emails []string) ([]domain.User, error)
-	SearchByNameFn func(ctx context.Context, query string, limit int) ([]domain.User, error)
+	CreateFn                 func(ctx context.Context, user *domain.User) error
+	FindByEmailFn            func(ctx context.Context, email string) (*domain.User, error)
+	FindByIDFn               func(ctx context.Context, id uuid.UUID) (*domain.User, error)
+	FindByIDsFn              func(ctx context.Context, ids []uuid.UUID) ([]domain.User, error)
+	FindByEmailsFn           func(ctx context.Context, emails []string) ([]domain.User, error)
+	SearchByNameFn           func(ctx context.Context, query string, limit int) ([]domain.User, error)
+	FindByTelegramIDFn       func(ctx context.Context, telegramID int64) (*domain.User, error)
+	UpdateTelegramIDFn       func(ctx context.Context, userID uuid.UUID, telegramID int64) error
+	UpdateTelegramUsernameFn func(ctx context.Context, userID uuid.UUID, username string) error
+	MergeUsersFn             func(ctx context.Context, fromID, toID uuid.UUID) error
 }
 
 func (m *MockUserRepo) Create(ctx context.Context, user *domain.User) error {
@@ -58,6 +62,34 @@ func (m *MockUserRepo) SearchByName(ctx context.Context, query string, limit int
 		return m.SearchByNameFn(ctx, query, limit)
 	}
 	return nil, nil
+}
+
+func (m *MockUserRepo) FindByTelegramID(ctx context.Context, telegramID int64) (*domain.User, error) {
+	if m.FindByTelegramIDFn != nil {
+		return m.FindByTelegramIDFn(ctx, telegramID)
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (m *MockUserRepo) UpdateTelegramID(ctx context.Context, userID uuid.UUID, telegramID int64) error {
+	if m.UpdateTelegramIDFn != nil {
+		return m.UpdateTelegramIDFn(ctx, userID, telegramID)
+	}
+	return nil
+}
+
+func (m *MockUserRepo) UpdateTelegramUsername(ctx context.Context, userID uuid.UUID, username string) error {
+	if m.UpdateTelegramUsernameFn != nil {
+		return m.UpdateTelegramUsernameFn(ctx, userID, username)
+	}
+	return nil
+}
+
+func (m *MockUserRepo) MergeUsers(ctx context.Context, fromID, toID uuid.UUID) error {
+	if m.MergeUsersFn != nil {
+		return m.MergeUsersFn(ctx, fromID, toID)
+	}
+	return nil
 }
 
 // MockMeetingRepo implements domain.MeetingRepository for testing

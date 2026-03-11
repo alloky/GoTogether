@@ -10,6 +10,12 @@ type Config struct {
 	MigrationsPath string
 	OTELEndpoint   string
 	SentryDSN      string
+	BotLinkSecret  string
+	SMTPHost       string
+	SMTPPort       string
+	SMTPUser       string
+	SMTPPassword   string
+	SMTPFrom       string
 }
 
 func Load() *Config {
@@ -21,6 +27,12 @@ func Load() *Config {
 		MigrationsPath: getEnv("MIGRATIONS_PATH", "/migrations"),
 		OTELEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
 		SentryDSN:      getEnv("SENTRY_DSN", ""),
+		BotLinkSecret:  getEnv("BOT_LINK_SECRET", "dev-link-secret"),
+		SMTPHost:       getEnv("SMTP_HOST", ""),
+		SMTPPort:       getEnv("SMTP_PORT", "587"),
+		SMTPUser:       getEnv("SMTP_USER", ""),
+		SMTPPassword:   getEnv("SMTP_PASSWORD", ""),
+		SMTPFrom:       getEnv("SMTP_FROM", "noreply@gotogether.local"),
 	}
 }
 

@@ -274,6 +274,7 @@ func renderHelp() string {
 /meetings - View your meetings
 /calendar - Upcoming confirmed events
 /new - Create a new meeting
+/link - Link to your web account
 /help - Show this help
 
 <b>Features:</b>
@@ -283,7 +284,8 @@ func renderHelp() string {
 • Accept or decline invitations
 • Organizer can confirm the final time
 • Tag meetings for easy filtering
-• Public & private meeting visibility`
+• Public & private meeting visibility
+• Link your Telegram to your web account`
 }
 
 func renderSearchResults(users []apiclient.User) string {

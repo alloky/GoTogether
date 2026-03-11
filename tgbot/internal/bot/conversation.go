@@ -18,13 +18,16 @@ const (
 	StateAwaitTags
 	StateAwaitParticipantSearch
 	StateAwaitMoreParticipants
+	StateAwaitLinkEmail
+	StateAwaitLinkCode
 )
 
 type ConvData struct {
-	State  ConvState
-	Draft  apiclient.CreateMeetingInput
-	Slots  []apiclient.TimeSlotInput
+	State          ConvState
+	Draft          apiclient.CreateMeetingInput
+	Slots          []apiclient.TimeSlotInput
 	VoteSelections map[string]bool // meetingID:slotID -> selected
+	LinkEmail      string          // stored during /link flow
 }
 
 type ConversationManager struct {

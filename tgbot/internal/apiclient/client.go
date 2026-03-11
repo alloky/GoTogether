@@ -161,3 +161,68 @@ func (c *Client) SearchUsers(ctx context.Context, token, query string) ([]User, 
 	err := c.doJSON(ctx, http.MethodGet, "/users/search?q="+url.QueryEscape(query)+"&limit=10", token, nil, &users)
 	return users, err
 }
+
+// InitiateLinkFromBot calls POST /api/link/bot/initiate with bot secret auth.
+func (c *Client) InitiateLinkFromBot(ctx context.Context, botSecret string, telegramID int64, email string) error {
+	return c.doJSONWithSecret(ctx, http.MethodPost, "/link/bot/initiate", botSecret, map[string]interface{}{
+		"telegramId": telegramID,
+		"email":      email,
+	}, nil)
+}
+
+// ConfirmLinkFromBot calls POST /api/link/bot/confirm with bot secret auth.
+func (c *Client) ConfirmLinkFromBot(ctx context.Context, botSecret string, telegramID int64, email, code string) (string, error) {
+	var resp struct {
+		Token string `json:"token"`
+	}
+	err := c.doJSONWithSecret(ctx, http.MethodPost, "/link/bot/confirm", botSecret, map[string]interface{}{
+		"telegramId": telegramID,
+		"email":      email,
+		"code":       code,
+	}, &resp)
+	return resp.Token, err
+}
+
+func (c *Client) doJSONWithSecret(ctx context.Context, method, path, secret string, body, result interface{}) error {
+	var bodyReader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("marshal request: %w", err)
+		}
+		bodyReader = bytes.NewReader(b)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+"/api"+path, bodyReader)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Bot-Secret", secret)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		var errResp ErrorResponse
+		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error != "" {
+			return fmt.Errorf("API error %d: %s", resp.StatusCode, errResp.Error)
+		}
+		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	if result != nil && len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, result); err != nil {
+			return fmt.Errorf("unmarshal response: %w", err)
+		}
+	}
+	return nil
+}

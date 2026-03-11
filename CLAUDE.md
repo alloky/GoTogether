@@ -66,13 +66,28 @@ Follows a strict layered architecture:
 Migrations live in `backend/migrations/` and are run automatically at startup via `golang-migrate`.
 
 ### Backend environment variables
-| Variable | Default |
-|---|---|
-| `DATABASE_URL` | `postgres://gotogether:gotogether@localhost:5432/gotogether?sslmode=disable` |
-| `JWT_SECRET` | `dev-secret-change-me` |
-| `PORT` | `8080` |
-| `CORS_ORIGIN` | `http://localhost:3000` |
-| `MIGRATIONS_PATH` | `/migrations` |
+| Variable | Default | Notes |
+|---|---|---|
+| `DATABASE_URL` | `postgres://gotogether:gotogether@localhost:5432/gotogether?sslmode=disable` | |
+| `JWT_SECRET` | `dev-secret-change-me` | |
+| `PORT` | `8080` | |
+| `CORS_ORIGIN` | `http://localhost:3000` | |
+| `MIGRATIONS_PATH` | `/migrations` | |
+| `SMTP_HOST` | `` | Empty → falls back to log-only sender |
+| `SMTP_PORT` | `465` | Use 465 (implicit TLS/SMTPS) or 587 (STARTTLS) |
+| `SMTP_USER` | `` | Empty → no auth (local relay) |
+| `SMTP_PASSWORD` | `` | |
+| `SMTP_FROM` | `` | Sender address shown in emails |
+
+### Email / SMTP
+`backend/internal/service/email_service.go` has two send paths:
+- **Port 465** — implicit TLS (SMTPS). Used for Gmail and most external providers.
+- **Port 587/25** — plain connection upgraded via STARTTLS if the server advertises it.
+- **No credentials** — auth is skipped entirely (suitable for local relays).
+
+When `SMTP_HOST` is empty the backend uses `LogEmailSender`, which prints the code to stdout only.
+
+All five SMTP vars are read from the root `.env` file (loaded via `env_file: .env` in docker-compose).
 
 ### API routes (`/api/`)
 - `POST /auth/register`, `POST /auth/login` — public

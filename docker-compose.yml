@@ -23,6 +23,7 @@ services:
   backend:
     build: ./backend
     network_mode: host
+    env_file: .env
     environment:
       DATABASE_URL: postgres://gotogether:gotogether@127.0.0.1:5432/gotogether?sslmode=disable
       JWT_SECRET: dev-secret-change-me
@@ -30,6 +31,12 @@ services:
       CORS_ORIGIN: "http://localhost:3000"
       OTEL_EXPORTER_OTLP_ENDPOINT: "localhost:4317"
       SENTRY_DSN: "${SENTRY_DSN_BACKEND:-}"
+      BOT_LINK_SECRET: "${BOT_LINK_SECRET:-dev-link-secret}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +57,7 @@ services:
       BACKEND_URL: http://127.0.0.1:8080
       JWT_SECRET: dev-secret-change-me
       SENTRY_DSN: "${SENTRY_DSN_TGBOT:-}"
+      BOT_LINK_SECRET: "${BOT_LINK_SECRET:-dev-link-secret}"
     depends_on:
       - backend
     restart: on-failure
@@ -106,12 +114,18 @@ services:
     network_mode: host
     env_file: monitoring/.env
     volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.tmpl:ro
       - alertmanagerdata:/alertmanager
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
-      - "--web.listen-address=:9093"
+      - |
+        sed -e "s|\$${ALERT_BOT_TOKEN}|$$ALERT_BOT_TOKEN|g" \
+            -e "s|\$${ALERT_CHAT_ID}|$$ALERT_CHAT_ID|g" \
+            /etc/alertmanager/alertmanager.tmpl > /etc/alertmanager/alertmanager.yml
+        exec /bin/alertmanager \
+          --config.file=/etc/alertmanager/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.listen-address=:9093
     restart: unless-stopped
 
   # ═══════════════════════════════════════════
@@ -231,6 +245,7 @@ services:
       GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor traceToMetrics"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafanadata:/var/lib/grafana
     depends_on:
       - victoriametrics

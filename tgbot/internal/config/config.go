@@ -8,6 +8,7 @@ type Config struct {
 	BackendURL       string
 	JWTSecret        string
 	SentryDSN        string
+	BotLinkSecret    string
 }
 
 func Load() *Config {
@@ -17,6 +18,7 @@ func Load() *Config {
 		BackendURL:       getEnv("BACKEND_URL", "http://127.0.0.1:8080"),
 		JWTSecret:        getEnv("JWT_SECRET", "dev-secret-change-me"),
 		SentryDSN:        getEnv("SENTRY_DSN", ""),
+		BotLinkSecret:    getEnv("BOT_LINK_SECRET", "dev-link-secret"),
 	}
 }
 

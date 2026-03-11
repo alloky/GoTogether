@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { CreateMeetingPage } from './pages/CreateMeetingPage';
 import { MeetingDetailPage } from './pages/MeetingDetailPage';
 import { CalendarPage } from './pages/CalendarPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ function App() {
                 <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/meetings/new" element={<CreateMeetingPage />} />
                 <Route path="/meetings/:id" element={<MeetingDetailPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

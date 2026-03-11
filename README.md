@@ -23,9 +23,10 @@ A meeting scheduling app that lets groups propose time slots, vote on availabili
 
 **Prerequisites:** Docker and Docker Compose.
 
-1. Create the root `.env` with your Telegram bot token:
+1. Copy the root `.env` example and fill in your values:
    ```bash
-   echo "TELEGRAM_BOT_TOKEN=your_token_here" > .env
+   cp .env.example .env
+   # Edit .env — fill in TELEGRAM_BOT_TOKEN and SMTP_* vars
    ```
 
 2. Create `monitoring/.env` for alert notifications (copy the example):
@@ -128,11 +129,20 @@ monitoring/
 - **`OTEL_EXPORTER_OTLP_ENDPOINT`** — `localhost:4317` (gRPC endpoint for OTel Collector)
 - **`SENTRY_DSN`** — GlitchTip DSN for error tracking (optional, set via `SENTRY_DSN_BACKEND`)
 
-### Telegram Bot (`.env` in project root)
+### Root `.env` (Telegram bot + SMTP, shared by backend and tgbot)
 - **`TELEGRAM_BOT_TOKEN`** — required
 - **`BACKEND_URL`** — defaults to `http://127.0.0.1:8080`
 - **`JWT_SECRET`** — must match backend
 - **`SENTRY_DSN`** — GlitchTip DSN for error tracking (optional, set via `SENTRY_DSN_TGBOT`)
+- **`SMTP_HOST`** — SMTP server hostname (e.g. `smtp.gmail.com`). Empty = log-only mode.
+- **`SMTP_PORT`** — `465` for implicit TLS (recommended for Gmail), `587` for STARTTLS
+- **`SMTP_USER`** — SMTP login (Gmail address). Empty = no auth.
+- **`SMTP_PASSWORD`** — SMTP password or Gmail App Password
+- **`SMTP_FROM`** — Sender address shown in outgoing emails
+
+> **Gmail setup:** enable 2-Step Verification, then generate an App Password at Google Account → Security → App passwords. Use port `465`.
+
+See `.env.example` for a ready-to-fill template.
 
 ### Monitoring (`monitoring/.env`)
 - **`ALERT_BOT_TOKEN`** — Telegram bot token for alert notifications (different from the GoTogether bot)

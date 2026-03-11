@@ -68,13 +68,25 @@ func main() {
 	// Initialize repositories
 	userRepo := postgres.NewUserRepo(pool)
 	meetingRepo := postgres.NewMeetingRepo(pool)
+	linkCodeRepo := postgres.NewLinkCodeRepo(pool)
+
+	// Initialize email sender
+	var emailSender service.EmailSender
+	if cfg.SMTPHost != "" {
+		emailSender = service.NewSMTPEmailSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPFrom)
+		log.Println("SMTP email sender configured")
+	} else {
+		emailSender = &service.LogEmailSender{}
+		log.Println("Using log-based email sender (set SMTP_HOST to enable real emails)")
+	}
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	meetingService := service.NewMeetingService(meetingRepo, userRepo)
+	linkService := service.NewLinkService(userRepo, linkCodeRepo, authService, emailSender)
 
 	// Initialize router
-	router := handler.NewRouter(authService, meetingService, cfg.CORSOrigin, pool)
+	router := handler.NewRouter(authService, meetingService, linkService, cfg.CORSOrigin, cfg.BotLinkSecret, pool)
 
 	// Start server
 	srv := &http.Server{

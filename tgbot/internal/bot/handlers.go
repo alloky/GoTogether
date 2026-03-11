@@ -173,6 +173,24 @@ func (b *Bot) buildCalendarKeyboard(c tele.Context, token, activeTag string) *te
 	return markup
 }
 
+func (b *Bot) handleLink(c tele.Context) error {
+	_, err := b.ensureAuth(c)
+	if err != nil {
+		return c.Send("Please /start first.")
+	}
+
+	data := &ConvData{State: StateAwaitLinkEmail}
+	b.conv.Set(c.Chat().ID, data)
+
+	return c.Send(
+		"\U0001f517 <b>Link Web Account</b>\n\n"+
+			"Enter the <b>email address</b> of your GoTogether web account:\n\n"+
+			"A one-time code will be sent to that email.\n"+
+			"Send /cancel to abort.",
+		&tele.SendOptions{ParseMode: tele.ModeHTML},
+	)
+}
+
 func (b *Bot) handleNew(c tele.Context) error {
 	_, err := b.ensureAuth(c)
 	if err != nil {
@@ -350,6 +368,60 @@ func (b *Bot) advanceConversation(c tele.Context, data *ConvData, input string) 
 		markup.Inline(rows...)
 
 		return c.Send(renderSearchResults(users), &tele.SendOptions{ParseMode: tele.ModeHTML}, markup)
+
+	case StateAwaitLinkEmail:
+		if input == "" {
+			return c.Send("Please enter your web account email:")
+		}
+		// Basic email validation
+		if !strings.Contains(input, "@") || !strings.Contains(input, ".") {
+			return c.Send("That doesn't look like a valid email. Please try again:")
+		}
+		email := strings.TrimSpace(input)
+
+		err := b.api.InitiateLinkFromBot(ctx(), b.botLinkSecret, c.Sender().ID, email)
+		if err != nil {
+			log.Printf("InitiateLinkFromBot error: %v", err)
+			b.conv.Clear(c.Chat().ID)
+			return c.Send(fmt.Sprintf("Failed to send code: %s\n\nUse /link to try again.", err.Error()))
+		}
+
+		data.LinkEmail = email
+		data.State = StateAwaitLinkCode
+		b.conv.Set(c.Chat().ID, data)
+		return c.Send(
+			fmt.Sprintf("\u2709 A 6-digit code has been sent to <b>%s</b>.\n\n"+
+				"Enter the code here:\n\n"+
+				"Send /cancel to abort.", escapeHTML(email)),
+			&tele.SendOptions{ParseMode: tele.ModeHTML},
+		)
+
+	case StateAwaitLinkCode:
+		if input == "" {
+			return c.Send("Please enter the 6-digit code:")
+		}
+		code := strings.TrimSpace(input)
+		if len(code) != 6 {
+			return c.Send("The code should be 6 digits. Please try again:")
+		}
+
+		token, err := b.api.ConfirmLinkFromBot(ctx(), b.botLinkSecret, c.Sender().ID, data.LinkEmail, code)
+		if err != nil {
+			log.Printf("ConfirmLinkFromBot error: %v", err)
+			return c.Send(fmt.Sprintf("Invalid or expired code. Please try again or /cancel:\n\n%s", err.Error()))
+		}
+
+		// Update cached JWT to the web user's token
+		b.auth.SetToken(c.Sender().ID, token)
+		b.conv.Clear(c.Chat().ID)
+
+		return c.Send(
+			fmt.Sprintf("\u2705 <b>Account linked!</b>\n\n"+
+				"Your Telegram account is now connected to <b>%s</b>.\n"+
+				"All your meetings and votes have been merged.",
+				escapeHTML(data.LinkEmail)),
+			&tele.SendOptions{ParseMode: tele.ModeHTML},
+		)
 
 	default:
 		b.conv.Clear(c.Chat().ID)

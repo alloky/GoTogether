@@ -1,5 +1,5 @@
 import { Layout, Menu, Button, Typography } from 'antd';
-import { CalendarOutlined, ScheduleOutlined, PlusOutlined, LogoutOutlined } from '@ant-design/icons';
+import { CalendarOutlined, ScheduleOutlined, PlusOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -25,6 +25,11 @@ export function AppLayout() {
       key: '/meetings/new',
       icon: <PlusOutlined />,
       label: 'New Meeting',
+    },
+    {
+      key: '/profile',
+      icon: <UserOutlined />,
+      label: 'Profile',
     },
   ];
 

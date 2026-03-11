@@ -45,7 +45,7 @@ func main() {
 		opts = append(opts, bot.WithAPIURL(cfg.TelegramAPIURL))
 	}
 
-	b, err := bot.New(cfg.TelegramBotToken, api, authMgr, opts...)
+	b, err := bot.New(cfg.TelegramBotToken, api, authMgr, cfg.BotLinkSecret, opts...)
 	if err != nil {
 		log.Fatalf("Failed to create bot: %v", err)
 	}

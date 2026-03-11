@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func NewRouter(authService *service.AuthService, meetingService *service.MeetingService, corsOrigin string, pool *pgxpool.Pool) *chi.Mux {
+func NewRouter(authService *service.AuthService, meetingService *service.MeetingService, linkService *service.LinkService, corsOrigin, botLinkSecret string, pool *pgxpool.Pool) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Register pgx pool metrics collector (nil-safe for tests).
@@ -45,6 +45,7 @@ func NewRouter(authService *service.AuthService, meetingService *service.Meeting
 
 	authHandler := NewAuthHandler(authService)
 	meetingHandler := NewMeetingHandler(meetingService)
+	linkHandler := NewLinkHandler(linkService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public auth routes
@@ -56,7 +57,15 @@ func NewRouter(authService *service.AuthService, meetingService *service.Meeting
 			r.Group(func(r chi.Router) {
 				r.Use(AuthMiddleware(authService))
 				r.Get("/me", authHandler.Me)
+				r.Post("/link/telegram", linkHandler.LinkTelegram)
 			})
+		})
+
+		// Bot-to-backend link endpoints (authenticated by shared secret)
+		r.Route("/link", func(r chi.Router) {
+			r.Use(BotSecretMiddleware(botLinkSecret))
+			r.Post("/bot/initiate", linkHandler.InitiateFromBot)
+			r.Post("/bot/confirm", linkHandler.ConfirmFromBot)
 		})
 
 		// Protected user routes

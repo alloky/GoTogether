@@ -21,14 +21,15 @@ func WithAPIURL(url string) Option {
 }
 
 type Bot struct {
-	tbot  *tele.Bot
-	api   *apiclient.Client
-	auth  *auth.Manager
-	conv  *ConversationManager
-	votes *VoteStore
+	tbot          *tele.Bot
+	api           *apiclient.Client
+	auth          *auth.Manager
+	conv          *ConversationManager
+	votes         *VoteStore
+	botLinkSecret string
 }
 
-func New(token string, api *apiclient.Client, authMgr *auth.Manager, opts ...Option) (*Bot, error) {
+func New(token string, api *apiclient.Client, authMgr *auth.Manager, botLinkSecret string, opts ...Option) (*Bot, error) {
 	pref := tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -43,11 +44,12 @@ func New(token string, api *apiclient.Client, authMgr *auth.Manager, opts ...Opt
 	}
 
 	b := &Bot{
-		tbot:  tb,
-		api:   api,
-		auth:  authMgr,
-		conv:  NewConversationManager(),
-		votes: NewVoteStore(),
+		tbot:          tb,
+		api:           api,
+		auth:          authMgr,
+		conv:          NewConversationManager(),
+		votes:         NewVoteStore(),
+		botLinkSecret: botLinkSecret,
 	}
 
 	b.registerHandlers()
@@ -63,6 +65,7 @@ func (b *Bot) Start() {
 		{Text: "meetings", Description: "View your meetings"},
 		{Text: "calendar", Description: "Upcoming confirmed events"},
 		{Text: "new", Description: "Create a new meeting"},
+		{Text: "link", Description: "Link to your web account"},
 		{Text: "help", Description: "Show help"},
 	})
 	b.tbot.Start()
@@ -77,6 +80,7 @@ func (b *Bot) registerHandlers() {
 	b.tbot.Handle("/meetings", b.handleMeetings)
 	b.tbot.Handle("/calendar", b.handleCalendar)
 	b.tbot.Handle("/new", b.handleNew)
+	b.tbot.Handle("/link", b.handleLink)
 	b.tbot.Handle("/help", b.handleHelp)
 	b.tbot.Handle("/cancel", b.handleCancel)
 	b.tbot.Handle("/skip", b.handleSkip)

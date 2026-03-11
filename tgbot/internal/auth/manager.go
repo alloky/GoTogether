@@ -71,6 +71,11 @@ func (m *Manager) GetToken(telegramID int64) (string, bool) {
 	return tok.(string), true
 }
 
+// SetToken stores a JWT token for the given Telegram user (used after account linking).
+func (m *Manager) SetToken(telegramID int64, token string) {
+	m.tokens.Store(telegramID, token)
+}
+
 // InvalidateToken removes cached token so next call re-authenticates.
 func (m *Manager) InvalidateToken(telegramID int64) {
 	m.tokens.Delete(telegramID)
