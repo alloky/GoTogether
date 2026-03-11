@@ -27,6 +27,32 @@ func BotSecretMiddleware(secret string) func(http.Handler) http.Handler {
 	}
 }
 
+type botAuthRequest struct {
+	TelegramID int64 `json:"telegramId"`
+}
+
+// AuthByTelegramID handles POST /api/link/bot/auth
+// Returns a JWT for the web account linked to this Telegram ID, or 404 if none.
+func (h *LinkHandler) AuthByTelegramID(w http.ResponseWriter, r *http.Request) {
+	var req botAuthRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+	if req.TelegramID == 0 {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "telegramId is required"})
+		return
+	}
+
+	token, err := h.linkService.AuthByTelegramID(r.Context(), req.TelegramID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
 type initiateRequest struct {
 	TelegramID int64  `json:"telegramId"`
 	Email      string `json:"email"`

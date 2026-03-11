@@ -64,6 +64,7 @@ func NewRouter(authService *service.AuthService, meetingService *service.Meeting
 		// Bot-to-backend link endpoints (authenticated by shared secret)
 		r.Route("/link", func(r chi.Router) {
 			r.Use(BotSecretMiddleware(botLinkSecret))
+			r.Post("/bot/auth", linkHandler.AuthByTelegramID)
 			r.Post("/bot/initiate", linkHandler.InitiateFromBot)
 			r.Post("/bot/confirm", linkHandler.ConfirmFromBot)
 		})

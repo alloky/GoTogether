@@ -162,6 +162,18 @@ func (c *Client) SearchUsers(ctx context.Context, token, query string) ([]User, 
 	return users, err
 }
 
+// AuthByTelegramID calls POST /api/link/bot/auth.
+// Returns the JWT for the linked web account, or an error if none is linked.
+func (c *Client) AuthByTelegramID(ctx context.Context, botSecret string, telegramID int64) (string, error) {
+	var resp struct {
+		Token string `json:"token"`
+	}
+	err := c.doJSONWithSecret(ctx, http.MethodPost, "/link/bot/auth", botSecret, map[string]interface{}{
+		"telegramId": telegramID,
+	}, &resp)
+	return resp.Token, err
+}
+
 // InitiateLinkFromBot calls POST /api/link/bot/initiate with bot secret auth.
 func (c *Client) InitiateLinkFromBot(ctx context.Context, botSecret string, telegramID int64, email string) error {
 	return c.doJSONWithSecret(ctx, http.MethodPost, "/link/bot/initiate", botSecret, map[string]interface{}{

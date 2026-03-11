@@ -37,7 +37,7 @@ func main() {
 	log.Printf("Backend URL: %s", cfg.BackendURL)
 
 	api := apiclient.New(cfg.BackendURL)
-	authMgr := auth.NewManager(api, cfg.JWTSecret)
+	authMgr := auth.NewManager(api, cfg.JWTSecret, cfg.BotLinkSecret)
 
 	var opts []bot.Option
 	if cfg.TelegramAPIURL != "" {

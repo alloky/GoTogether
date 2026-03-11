@@ -14,24 +14,37 @@ import (
 )
 
 type Manager struct {
-	api       *apiclient.Client
-	jwtSecret string
-	tokens    sync.Map // int64 (telegramID) -> string (JWT)
+	api           *apiclient.Client
+	jwtSecret     string
+	botLinkSecret string
+	tokens        sync.Map // int64 (telegramID) -> string (JWT)
 }
 
-func NewManager(api *apiclient.Client, jwtSecret string) *Manager {
+func NewManager(api *apiclient.Client, jwtSecret, botLinkSecret string) *Manager {
 	return &Manager{
-		api:       api,
-		jwtSecret: jwtSecret,
+		api:           api,
+		jwtSecret:     jwtSecret,
+		botLinkSecret: botLinkSecret,
 	}
 }
 
 // EnsureAuth returns a valid JWT token for the given Telegram user.
-// Auto-registers or logs in as needed.
+// Priority order:
+//  1. In-memory cache (fastest path, avoids network on every message)
+//  2. Linked web account lookup via /link/bot/auth (survives bot restarts)
+//  3. Shadow account login / register (first-time users)
 func (m *Manager) EnsureAuth(ctx context.Context, telegramID int64, firstName, lastName, username string) (string, error) {
-	// Check cache first
+	// 1. Check cache first
 	if tok, ok := m.tokens.Load(telegramID); ok {
 		return tok.(string), nil
+	}
+
+	// 2. Check if this Telegram ID is linked to a web account.
+	//    This handles bot restarts correctly — no need to re-run /link.
+	if token, err := m.api.AuthByTelegramID(ctx, m.botLinkSecret, telegramID); err == nil && token != "" {
+		m.tokens.Store(telegramID, token)
+		log.Printf("Telegram user %d authenticated via linked web account", telegramID)
+		return token, nil
 	}
 
 	email := fmt.Sprintf("tg_%d@telegram.local", telegramID)

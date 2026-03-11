@@ -122,6 +122,20 @@ func (s *LinkService) ConfirmLinkFromBot(ctx context.Context, telegramID int64, 
 	return token, nil
 }
 
+// AuthByTelegramID looks up a user by their Telegram ID and returns a fresh JWT.
+// Returns domain.ErrNotFound if no user is linked to that Telegram ID.
+func (s *LinkService) AuthByTelegramID(ctx context.Context, telegramID int64) (string, error) {
+	user, err := s.userRepo.FindByTelegramID(ctx, telegramID)
+	if err != nil {
+		return "", err // caller checks for domain.ErrNotFound
+	}
+	token, err := s.authService.generateToken(user.ID)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
 // LinkTelegramUsername sets the telegram username on a web user's profile.
 func (s *LinkService) LinkTelegramUsername(ctx context.Context, userID uuid.UUID, username string) error {
 	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
