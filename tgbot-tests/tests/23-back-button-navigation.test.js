@@ -1,8 +1,8 @@
 /**
  * CJM: Back Button Navigation
  *
- * Tests the "Back to Meetings" button on the meeting detail page
- * and verifies it navigates back to the meetings list.
+ * Tests "Back to Meetings" on meeting detail, and "Main Menu" buttons
+ * on meetings list, calendar, and help — verifying every menu has a way back.
  */
 
 const { createTestHarness } = require('../helpers/setup');
@@ -20,7 +20,7 @@ beforeAll(async () => {
   await user.sendCommand('/start');
   await user.sleep(1000);
 
-  // Create a meeting so user has something to navigate to
+  // Create a meeting so the meetings list is non-empty
   const token = await api.getToken(user.userId, user.name);
   await api.createMeeting(token, {
     title: 'Back Nav Meeting',
@@ -39,34 +39,78 @@ afterAll(async () => {
   await harness.stop();
 });
 
-describe('Back Button Navigation', () => {
-  test('navigate to meeting detail', async () => {
+describe('Back Button — Meeting Detail', () => {
+  test('meeting detail has a Back to Meetings button', async () => {
     await user.sendCommand('/meetings');
-    await user.pressButtonByText('Back Nav Meeting');
-    const resp = await user.getLastResponse();
-    expect(resp.text).toContain('Back Nav Meeting');
-    expect(resp.text).toContain('Testing back navigation');
-  });
-
-  test('pressing Back returns to meetings list', async () => {
-    const backBtn = await user.findButton('Back to Meetings');
-    expect(backBtn).not.toBeNull();
-
-    await user.pressButtonByText('Back to Meetings');
-    const resp = await user.getLastResponse();
-    expect(resp.text).toContain('Your Meetings');
-    expect(resp.text).toContain('Back Nav Meeting');
-  });
-
-  test('can navigate back to detail and back again', async () => {
-    // Go back into detail
     await user.pressButtonByText('Back Nav Meeting');
     const detail = await user.getLastResponse();
     expect(detail.text).toContain('Back Nav Meeting');
 
-    // Go back to list again
+    const backBtn = await user.findButton('Back to Meetings');
+    expect(backBtn).not.toBeNull();
+  });
+
+  test('pressing Back to Meetings returns to meetings list', async () => {
     await user.pressButtonByText('Back to Meetings');
     const list = await user.getLastResponse();
     expect(list.text).toContain('Your Meetings');
+    expect(list.text).toContain('Back Nav Meeting');
+  });
+
+  test('can navigate detail → back → detail → back repeatedly', async () => {
+    await user.pressButtonByText('Back Nav Meeting');
+    expect((await user.getLastResponse()).text).toContain('Back Nav Meeting');
+
+    await user.pressButtonByText('Back to Meetings');
+    expect((await user.getLastResponse()).text).toContain('Your Meetings');
+  });
+});
+
+describe('Back Button — Meetings List', () => {
+  test('meetings list has a Main Menu button', async () => {
+    await user.sendCommand('/meetings');
+    const btn = await user.findButton('Main Menu');
+    expect(btn).not.toBeNull();
+  });
+
+  test('pressing Main Menu from meetings list shows welcome message', async () => {
+    await user.pressButtonByText('Main Menu');
+    const resp = await user.getLastResponse();
+    expect(resp.text).toContain('GoTogether');
+    // Main menu buttons are present
+    const myMeetingsBtn = await user.findButton('My Meetings');
+    expect(myMeetingsBtn).not.toBeNull();
+  });
+});
+
+describe('Back Button — Calendar', () => {
+  test('calendar has a Main Menu button', async () => {
+    await user.sendCommand('/calendar');
+    const btn = await user.findButton('Main Menu');
+    expect(btn).not.toBeNull();
+  });
+
+  test('pressing Main Menu from calendar shows welcome message', async () => {
+    await user.pressButtonByText('Main Menu');
+    const resp = await user.getLastResponse();
+    expect(resp.text).toContain('GoTogether');
+    const calBtn = await user.findButton('Calendar');
+    expect(calBtn).not.toBeNull();
+  });
+});
+
+describe('Back Button — Help', () => {
+  test('help message has a Main Menu button', async () => {
+    await user.sendCommand('/help');
+    const btn = await user.findButton('Main Menu');
+    expect(btn).not.toBeNull();
+  });
+
+  test('pressing Main Menu from help shows welcome message', async () => {
+    await user.pressButtonByText('Main Menu');
+    const resp = await user.getLastResponse();
+    expect(resp.text).toContain('GoTogether');
+    const helpBtn = await user.findButton('Help');
+    expect(helpBtn).not.toBeNull();
   });
 });

@@ -410,6 +410,8 @@ func (b *Bot) cbBack(c tele.Context) error {
 		return b.sendMeetingsList(c, 0)
 	case "calendar":
 		return b.sendCalendar(c, "")
+	case "main":
+		return b.handleStart(c)
 	default:
 		return b.sendMeetingsList(c, 0)
 	}

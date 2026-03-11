@@ -95,6 +95,7 @@ func (b *Bot) buildMeetingListKeyboard(meetings []apiclient.Meeting, page, pp in
 
 	rows = append(rows, markup.Row(
 		markup.Data("\u2795 New Meeting", "menu", "new"),
+		markup.Data("\U0001f3e0 Main Menu", "back", "main"),
 	))
 
 	markup.Inline(rows...)
@@ -169,6 +170,10 @@ func (b *Bot) buildCalendarKeyboard(c tele.Context, token, activeTag string) *te
 		}
 	}
 
+	rows = append(rows, markup.Row(
+		markup.Data("\U0001f3e0 Main Menu", "back", "main"),
+	))
+
 	markup.Inline(rows...)
 	return markup
 }
@@ -217,7 +222,11 @@ func (b *Bot) handleNew(c tele.Context) error {
 }
 
 func (b *Bot) handleHelp(c tele.Context) error {
-	return c.Send(renderHelp(), &tele.SendOptions{ParseMode: tele.ModeHTML})
+	markup := &tele.ReplyMarkup{}
+	markup.Inline(markup.Row(
+		markup.Data("\U0001f3e0 Main Menu", "back", "main"),
+	))
+	return c.Send(renderHelp(), &tele.SendOptions{ParseMode: tele.ModeHTML}, markup)
 }
 
 func (b *Bot) handleCancel(c tele.Context) error {
